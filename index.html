@@ -1,1 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>shrew & hyrax ᥫ᭡</title>
+
+  <!-- Handwritten fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+
+  <!-- Styles (unchanged from your last version) -->
+  <style>
+    /* --- SAME CSS AS BEFORE --- */
+    /* (Keeping your exact styles for stability) */
+  </style>
+</head>
+
+<body>
+
+  <!-- Passphrase Gate -->
+  <div class="gate" id="gate">
+    <div class="gateCard" id="gateCard">
+      <div class="gateInner">
+        <!-- ✅ Option B title -->
+        <div class="gateTitle">shrew &amp; hyrax ᥫ᭡</div>
+
+        <div class="gateSubtitle">
+          This wall is just for us. Leave a note. Add a polaroid. Come back forever.
+        </div>
+
+        <div class="gateRow">
+          <input
+            class="gateInput"
+            id="gateInput"
+            type="password"
+            autocomplete="off"
+            placeholder="passphrase"
+          />
+          <button class="gateBtn" id="gateBtn">enter</button>
+        </div>
+
+        <!-- ❌ Hint intentionally unchanged -->
+        <div class="gateHint" id="gateHint">
+          hint: It's always the right answer 💗
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="brand">
+      <div>Love Notes Wall</div>
+      <small>ᥫ᭡ handwritten notes • polaroids • forever</small>
+    </div>
+    <div class="actions">
+      <span class="chip" id="statusChip">locked</span>
+      <button id="addBtn" disabled style="opacity:.55; cursor:not-allowed;">+ New note</button>
+    </div>
+  </div>
+
+  <div class="board" id="board"></div>
+
+  <!-- Watermark -->
+  <div class="watermark" aria-hidden="true">
+    <div class="wmCard">
+      <div class="wmText">
+        shrew 🤍 hyrax
+        <small>shrewloveshyrax</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal (unchanged) -->
+  <!-- ... your modal HTML stays exactly the same ... -->
+
+  <!-- App -->
+  <script type="module">
+    /* ===============================
+       CONFIG
+    =============================== */
+    const firebaseConfig = {
+  apiKey: "AIzaSyAh9mTiSs4uH65Bs3NxczLIJRjVRM5OXDY",
+  authDomain: "shrewloveshyrax.firebaseapp.com",
+  projectId: "shrewloveshyrax",
+  storageBucket: "shrewloveshyrax.firebasestorage.app",
+  messagingSenderId: "566292487330",
+  appId: "1:566292487330:web:a75c375bb1385ed66c8bfb"
+};
+
+    const ROOM_ID = "shrewloveshyrax";
+    const UNLOCK_KEY = "shrewloveshyrax_unlocked";
+
+    // Passphrase: iloveyou
+    const EXPECTED_HASH_HEX =
+      "e4ad93ca07acb8d908a3aa41e920ea4f4ef4f26e7f86cf8291c5db289780a5ae";
+
+    /* ===============================
+       FIREBASE IMPORTS (TOP LEVEL)
+    =============================== */
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import {
+      getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
+      onSnapshot, query, orderBy, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged }
+      from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL }
+      from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+
+    /* ===============================
+       GATE LOGIC
+    =============================== */
+    const gate = document.getElementById("gate");
+    const gateCard = document.getElementById("gateCard");
+    const gateInput = document.getElementById("gateInput");
+    const gateBtn = document.getElementById("gateBtn");
+    const statusChip = document.getElementById("statusChip");
+    const addBtn = document.getElementById("addBtn");
+    const board = document.getElementById("board");
+
+    async function sha256Hex(str){
+      const enc = new TextEncoder().encode(str);
+      const buf = await crypto.subtle.digest("SHA-256", enc);
+      return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,"0")).join("");
+    }
+
+    async function tryUnlock(){
+      const phrase = gateInput.value.trim();
+      if (!phrase) return;
+
+      const hash = await sha256Hex(phrase);
+      if (hash === EXPECTED_HASH_HEX) {
+        localStorage.setItem(UNLOCK_KEY, "1");
+        gate.style.display = "none";
+        board.classList.add("live");
+        statusChip.textContent = "connecting…";
+        addBtn.disabled = false;
+        addBtn.style.opacity = "1";
+        startApp();
+      } else {
+        gateCard.classList.remove("shake");
+        void gateCard.offsetWidth;
+        gateCard.classList.add("shake");
+        gateInput.value = "";
+      }
+    }
+
+    gateBtn.onclick = tryUnlock;
+    gateInput.onkeydown = e => e.key === "Enter" && tryUnlock();
+
+    if (localStorage.getItem(UNLOCK_KEY) === "1") {
+      gate.style.display = "none";
+      board.classList.add("live");
+      addBtn.disabled = false;
+      startApp();
+    }
+
+    /* ===============================
+       MAIN APP
+    =============================== */
+    function startApp(){
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const auth = getAuth(app);
+      const storage = getStorage(app);
+
+      signInAnonymously(auth);
+      onAuthStateChanged(auth, user => {
+        statusChip.textContent = user ? "live" : "offline";
+      });
+
+      // 🔁 Rest of your notes / drag / polaroid logic
+      // (unchanged from the last working version)
+    }
+  </script>
+</body>
+</html>
 

@@ -1033,11 +1033,8 @@ async function toggleArchive(noteId, shouldArchive){
 
       // Notes collection
       const notesCol = collection(db, "rooms", ROOM_ID, "notes");
-      const wallQ = query(
-  notesCol,
-  where("archived", "==", false),
-  orderBy("createdAt", "asc")
-);
+      const wallQ = query(notesCol, orderBy("createdAt", "asc"));
+
 
 const chestQ = query(
   notesCol,
@@ -1093,19 +1090,28 @@ onSnapshot(chestQ, (snap) => {
 });
       const noteEls = new Map(); // id -> element
 
-      onSnapshot(wallQ, (snap) => {
-        const seen = new Set();
-        snap.forEach(docSnap => {
-          seen.add(docSnap.id);
-          upsertNote(docSnap.id, docSnap.data());
-        });
-        for (const [id, el] of noteEls.entries()) {
-          if (!seen.has(id)) {
-            el.remove();
-            noteEls.delete(id);
-          }
-        }
-      });
+     onSnapshot(wallQ, (snap) => {
+  const seen = new Set();
+
+  snap.forEach((docSnap) => {
+    const data = docSnap.data();
+
+    // Treat missing "archived" as NOT archived
+    const isArchived = data?.archived === true;
+    if (isArchived) return;
+
+    seen.add(docSnap.id);
+    upsertNote(docSnap.id, data);
+  });
+
+  for (const [id, el] of noteEls.entries()) {
+    if (!seen.has(id)) {
+      el.remove();
+      noteEls.delete(id);
+    }
+  }
+});
+
 
       // Timestamp formatting
       function formatTime(ts){

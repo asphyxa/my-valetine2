@@ -533,6 +533,10 @@
       </div>
     </div>
   </div>
+<!-- Ambience audio (Tumblr-style background music) -->
+<audio id="ambienceAudio" preload="auto" loop>
+  <source src="audio/ambience.mp3" type="audio/mpeg" />
+</audio>
 
   <!-- Firebase + App -->
   <script type="module">
@@ -698,8 +702,19 @@ ambienceBtn.addEventListener("click", async () => {
 });
 
 // Default UI state on load 
-    if (localStorage.getItem("ambience_on") === "1") {
-  ambienceAudio.play().catch(() => {});
+    setAmbienceUI(localStorage.getItem("ambience_on") === "1");
+    // If user previously left ambience on, try to resume on the next user gesture
+if (localStorage.getItem("ambience_on") === "1") {
+  window.addEventListener(
+    "pointerdown",
+    () => {
+      if (ambienceAudio?.paused) {
+        playAmbience({ startMuffled: false }).catch(() => {});
+      }
+    },
+    { once: true }
+  );
+}
 }
 
 setAmbienceUI(localStorage.getItem("ambience_on") === "1");

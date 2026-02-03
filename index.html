@@ -407,7 +407,7 @@
   <div class="gate" id="gate">
     <div class="gateCard" id="gateCard">
       <div class="gateInner">
-        <div class="gateTitle">shrew &amp; hyrax ᥫ᭡</div>
+        <div class="gateTitle">shrew &amp; hyrax</div>
         <div class="gateSubtitle">This wall is just for us. Leave a note. Add a polaroid. Come back forever.</div>
 
         <div class="gateRow">
@@ -557,7 +557,7 @@
 
       const hash = await sha256Hex(phrase);
       if (hash === EXPECTED_HASH_HEX) {
-        localStorage.setItem(UNLOCK_KEY, "1");
+        sessionStorage.setItem(UNLOCK_KEY, "1");
 
         gate.style.display = "none";
         statusChip.textContent = "connecting…";
@@ -582,7 +582,7 @@
     });
 
     // auto-unlock on this device if already unlocked
-    if (localStorage.getItem(UNLOCK_KEY) === "1") {
+    if (sessionStorage.getItem(UNLOCK_KEY) === "1") {
       gate.style.display = "none";
       statusChip.textContent = "connecting…";
       board.classList.add("live");

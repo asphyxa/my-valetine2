@@ -399,6 +399,39 @@
       .cols{grid-template-columns: 1fr}
       .gateTitle{font-size:34px}
     }
+    .ambienceBtn{
+  position:relative;
+  border-radius:999px;
+  font-family:"Patrick Hand", system-ui;
+  letter-spacing:.2px;
+}
+
+.ambienceBtn.on{
+  border-color: rgba(255,255,255,.28);
+  background: rgba(255,255,255,.14);
+}
+
+.ambienceBtn .pill{
+  display:inline-block;
+  margin-left:8px;
+  font-size:12px;
+  opacity:.85;
+}
+
+.ambienceBtn .dot{
+  display:inline-block;
+  width:8px; height:8px;
+  border-radius:99px;
+  margin-left:6px;
+  background: rgba(255,255,255,.55);
+  vertical-align:middle;
+}
+
+.ambienceBtn.on .dot{
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 0 0 3px rgba(255,255,255,.14);
+}
+
   </style>
 </head>
 
@@ -423,10 +456,13 @@
 
   <div class="topbar">
     <div class="brand">
-      <div>Love Notes Wall</div>
+      <div>Our Wall</div>
       <small>ᥫ᭡ handwritten notes • polaroids • whatever we want, just for you and me.. • </small>
     </div>
     <div class="actions">
+      <button id="ambienceBtn" class="ambienceBtn" aria-pressed="false" title="Toggle ambience">
+    Ambience ♫
+  </button>
       <span class="chip" id="statusChip">locked</span>
       <button id="addBtn" disabled style="opacity:.55; cursor:not-allowed;">+ New note</button>
     </div>
@@ -542,6 +578,132 @@
     const gateBtn = document.getElementById("gateBtn");
 
     const statusChip = document.getElementById("statusChip");
+    // ==============================
+// Ambience (Tumblr-style audio)
+// ==============================
+const ambienceBtn = document.getElementById("ambienceBtn");
+const ambienceAudio = document.getElementById("ambienceAudio");
+
+// user-tweakables
+const AMBIENCE_VOL = 0.35;       // steady volume
+const GATE_MUFFLE_HZ = 650;      // muffled on gate
+const OPEN_HZ = 18000;           // clear after unlock
+
+let audioCtx = null;
+let filterNode = null;
+let gainNode = null;
+let audioReady = false;
+
+function setAmbienceUI(isOn){
+  ambienceBtn.classList.toggle("on", isOn);
+  ambienceBtn.setAttribute("aria-pressed", String(isOn));
+  ambienceBtn.innerHTML = isOn
+    ? `Ambience ♫ <span class="pill">playing</span><span class="dot"></span>`
+    : `Ambience ♫`;
+}
+
+function initAudioGraph(){
+  // Must be created from a user gesture (click/enter) in most browsers.
+  if (audioReady) return;
+
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  const src = audioCtx.createMediaElementSource(ambienceAudio);
+  filterNode = audioCtx.createBiquadFilter();
+  filterNode.type = "lowpass";
+  filterNode.frequency.value = GATE_MUFFLE_HZ;
+
+  gainNode = audioCtx.createGain();
+  gainNode.gain.value = 0;
+
+  src.connect(filterNode);
+  filterNode.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+
+  audioReady = true;
+}
+
+async function playAmbience({ startMuffled = true } = {}){
+  initAudioGraph();
+
+  // If context got suspended (common), resume it
+  if (audioCtx?.state === "suspended") {
+    await audioCtx.resume().catch(() => {});
+  }
+
+  // Set initial mood
+  if (filterNode) filterNode.frequency.setValueAtTime(
+    startMuffled ? GATE_MUFFLE_HZ : OPEN_HZ,
+    audioCtx.currentTime
+  );
+
+  // Start the element (allowed only after user gesture)
+  await ambienceAudio.play();
+
+  // Fade in nicely
+  const t = audioCtx.currentTime;
+  gainNode.gain.cancelScheduledValues(t);
+  gainNode.gain.setValueAtTime(gainNode.gain.value || 0, t);
+  gainNode.gain.linearRampToValueAtTime(AMBIENCE_VOL, t + 1.2);
+
+  localStorage.setItem("ambience_on", "1");
+  setAmbienceUI(true);
+}
+
+function openUpAmbience(){
+  // “Door opens”: remove low-pass smoothly
+  if (!audioReady) return;
+  const t = audioCtx.currentTime;
+  filterNode.frequency.cancelScheduledValues(t);
+  filterNode.frequency.setValueAtTime(filterNode.frequency.value, t);
+  filterNode.frequency.exponentialRampToValueAtTime(OPEN_HZ, t + 1.2);
+}
+
+function muffleAmbience(){
+  if (!audioReady) return;
+  const t = audioCtx.currentTime;
+  filterNode.frequency.cancelScheduledValues(t);
+  filterNode.frequency.setValueAtTime(filterNode.frequency.value, t);
+  filterNode.frequency.exponentialRampToValueAtTime(GATE_MUFFLE_HZ, t + 0.6);
+}
+
+function stopAmbience(){
+  if (!audioReady) {
+    ambienceAudio.pause();
+    localStorage.setItem("ambience_on", "0");
+    setAmbienceUI(false);
+    return;
+  }
+  const t = audioCtx.currentTime;
+  gainNode.gain.cancelScheduledValues(t);
+  gainNode.gain.setValueAtTime(gainNode.gain.value, t);
+  gainNode.gain.linearRampToValueAtTime(0.0001, t + 0.8); // smooth fade out
+  setTimeout(() => {
+    ambienceAudio.pause();
+    localStorage.setItem("ambience_on", "0");
+    setAmbienceUI(false);
+  }, 820);
+}
+
+ambienceBtn.addEventListener("click", async () => {
+  try {
+    if (localStorage.getItem("ambience_on") === "1" && !ambienceAudio.paused) {
+      stopAmbience();
+    } else {
+      await playAmbience({ startMuffled: false }); // button means you're already “inside”
+    }
+  } catch (e) {
+    console.warn("Ambience toggle error:", e);
+  }
+});
+
+// Default UI state on load 
+    if (localStorage.getItem("ambience_on") === "1") {
+  ambienceAudio.play().catch(() => {});
+}
+
+setAmbienceUI(localStorage.getItem("ambience_on") === "1");
+
     const addBtn = document.getElementById("addBtn");
     const board = document.getElementById("board");
 
@@ -552,22 +714,39 @@
     }
 
     async function tryUnlock(){
+      
       const phrase = (gateInput.value || "").trim();
       if (!phrase) return;
 
       const hash = await sha256Hex(phrase);
       if (hash === EXPECTED_HASH_HEX) {
-        sessionStorage.setItem(UNLOCK_KEY, "1");
+  sessionStorage.setItem(UNLOCK_KEY, "1");
 
-        gate.style.display = "none";
-        statusChip.textContent = "connecting…";
-        board.classList.add("live");
-        addBtn.disabled = false;
-        addBtn.style.opacity = "1";
-        addBtn.style.cursor = "pointer";
+  // 🎧 Start ambience on the *same click* that unlocks the gate (browser-friendly)
+  try {
+    await playAmbience({ startMuffled: true }); // muffled while gate is up
+  } catch {}
 
-        startApp();
-      } else {
+  // Tiny cinematic beat, then fade gate away
+  gate.style.transition = "opacity .55s ease";
+  gate.style.opacity = "0";
+
+  setTimeout(() => {
+    gate.style.display = "none";
+
+    // “Door opens” → clarity comes in
+    openUpAmbience();
+
+    statusChip.textContent = "connecting…";
+    board.classList.add("live");
+    addBtn.disabled = false;
+    addBtn.style.opacity = "1";
+    addBtn.style.cursor = "pointer";
+
+    startApp();
+  }, 520);
+}
+ else {
         gateCard.classList.remove("shake");
         void gateCard.offsetWidth;
         gateCard.classList.add("shake");

@@ -431,6 +431,114 @@
   background: rgba(255,255,255,.98);
   box-shadow: 0 0 0 3px rgba(255,255,255,.14);
 }
+.chestBtn{
+  border-radius:999px;
+  font-family:"Patrick Hand", system-ui;
+  letter-spacing:.2px;
+}
+.chestBtn.on{
+  border-color: rgba(255,255,255,.28);
+  background: rgba(255,255,255,.14);
+}
+    .chestOverlay{
+  position:fixed; inset:0;
+  background: rgba(0,0,0,.55);
+  display:none;
+  z-index:120;
+  padding:16px;
+  align-items:flex-end;
+  justify-content:center;
+}
+.chestPanel{
+  width:min(820px, 100%);
+  max-height: 80vh;
+  overflow:hidden;
+  border-radius:22px;
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.08);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 30px 70px rgba(0,0,0,.55);
+  display:flex;
+  flex-direction:column;
+}
+.chestHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:12px 12px 8px;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+.chestTitle{
+  font-family:"Caveat","Patrick Hand",system-ui;
+  font-size: 34px;
+  line-height: 1;
+}
+.chestSub{
+  padding:10px 12px 0;
+  opacity:.85;
+  font-family:"Patrick Hand",system-ui;
+}
+.chestList{
+  padding:12px;
+  overflow:auto;
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap:12px;
+}
+.chestCard{
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(0,0,0,.18);
+  border-radius:18px;
+  padding:12px;
+}
+.chestCard .who{
+  font-family:"Patrick Hand",system-ui;
+  opacity:.9;
+  margin-bottom:6px;
+}
+.chestCard .txt{
+  font-family:"Caveat","Patrick Hand",system-ui;
+  font-size:22px;
+  line-height:1.05;
+  white-space:pre-wrap;
+}
+.chestCard .meta{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-top:10px;
+  opacity:.75;
+  font-size:12px;
+  font-family:"Patrick Hand",system-ui;
+}
+.chestCard .smallBtn{
+  padding:8px 10px;
+  border-radius:14px;
+}
+/* Chest layout: make notes behave like cards (not draggable/absolute) */
+.note.inChest{
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.note.inChest .dragbar{
+  display:none;
+}
+
+.note.inChest .hint{
+  opacity:.55;
+}
+
+.note.inChest .meta{
+  margin-top: 8px;
+}
 
   </style>
 </head>
@@ -463,6 +571,9 @@
       <button id="ambienceBtn" class="ambienceBtn" aria-pressed="false" title="Toggle ambience">
     Ambience ♫
   </button>
+      <button id="chestBtn" class="chestBtn" aria-pressed="false" title="Open Chest">
+  Chest  📦
+</button>
       <span class="chip" id="statusChip">locked</span>
       <button id="addBtn" disabled style="opacity:.55; cursor:not-allowed;">+ New note</button>
     </div>
@@ -487,7 +598,20 @@
       </div>
     </div>
   </div>
-
+  
+<!-- Chest Drawer -->
+<div class="chestOverlay" id="chestOverlay" aria-hidden="true">
+  <div class="chestPanel" role="dialog" aria-modal="true">
+    <div class="chestHeader">
+      <div class="chestTitle">Chest 📦</div>
+      <button id="chestCloseBtn">Close</button>
+    </div>
+    <div class="chestSub">Archived notes live here. Unarchive any time.</div>
+   <div id="chestList" style="display:flex; flex-direction:column; gap:12px; padding:6px; max-height:62vh; overflow:auto;">
+      <!-- archived notes injected here -->
+    </div>
+  </div>
+</div>
   <!-- Modal -->
   <div class="modalOverlay" id="modalOverlay" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true">
@@ -794,6 +918,100 @@ if (localStorage.getItem("ambience_on") === "1") {
       const auth = getAuth(app);
       const storage = getStorage(app);
 
+      const chest = document.getElementById("chest");
+const chestBtn = document.getElementById("chestBtn");
+const closeChestBtn = document.getElementById("closeChestBtn");
+const chestList = document.getElementById("chestList");
+
+      function setChestOpen(isOpen){
+  chest.classList.toggle("open", isOpen);
+  chest.setAttribute("aria-hidden", String(!isOpen));
+  chestBtn.classList.toggle("on", isOpen);
+  chestBtn.setAttribute("aria-pressed", String(isOpen));
+}
+
+chestBtn.onclick = () => setChestOpen(!chest.classList.contains("open"));
+closeChestBtn.onclick = () => setChestOpen(false);
+
+      onSnapshot(chestQ, (snap) => {
+  chestList.innerHTML = "";
+
+  snap.forEach((docSnap) => {
+    const data = docSnap.data();
+    const id = docSnap.id;
+
+    const card = document.createElement("div");
+    card.className = "note";            // reuse your sticky note styling
+    card.style.position = "relative";
+    card.style.left = "auto";
+    card.style.top = "auto";
+    card.style.transform = "rotate(0deg)";
+    card.style.width = "100%";
+
+    const bg = data?.colorBg || "#FFE8A3";
+    const ink = data?.colorInk || "#1A1A1A";
+    card.style.backgroundColor = bg;
+    card.style.color = ink;
+
+    card.innerHTML = `
+      <div class="hdr" style="margin-top:0">
+        <div class="who">
+          <span>${escapeHtml(data?.author || "someone")}</span>
+          <small>${escapeHtml(data?.title || "")}</small>
+        </div>
+        <div class="tools">
+          <div class="iconbtn unarchiveBtn" title="Unarchive">↩</div>
+        </div>
+      </div>
+      <div class="text">${escapeHtml(data?.text || "")}</div>
+      ${
+        data?.imageUrl
+          ? `<div class="polaroid" style="display:block; transform:rotate(0deg)">
+               <img src="${data.imageUrl}" alt="Archived photo" />
+               <div class="caption">${escapeHtml(data?.caption || "")}</div>
+             </div>`
+          : ``
+      }
+      <div class="meta">
+        <div class="time">${formatTime(data?.createdAt)}</div>
+        <div class="hint">stored</div>
+      </div>
+    `;
+
+    card.querySelector(".unarchiveBtn").onclick = () => toggleArchive(id, false);
+
+    chestList.appendChild(card);
+  });
+});
+
+// tiny helper so notes can’t break your HTML
+function escapeHtml(str){
+  return String(str ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+
+      // ==============================
+// Archive / Unarchive (Chest)
+// ==============================
+async function toggleArchive(noteId, shouldArchive){
+  try{
+    await updateDoc(
+      doc(db, "rooms", ROOM_ID, "notes", noteId),
+      {
+        archived: !!shouldArchive,
+        archivedAt: shouldArchive ? serverTimestamp() : null
+      }
+    );
+  } catch (e){
+    console.error("Archive error:", e);
+    alert("Couldn’t move note. Check permissions / rules.");
+  }
+}
       // Modal elements
       const overlay = document.getElementById("modalOverlay");
       const cancelBtn = document.getElementById("cancelBtn");
@@ -845,11 +1063,23 @@ if (localStorage.getItem("ambience_on") === "1") {
 
       // Notes collection
       const notesCol = collection(db, "rooms", ROOM_ID, "notes");
-      const q = query(notesCol, orderBy("createdAt", "asc"));
+      const wallQ = query(
+  notesCol,
+  where("archived", "==", false),
+  orderBy("createdAt", "asc")
+);
+
+const chestQ = query(
+  notesCol,
+  where("archived", "==", true),
+  orderBy("archivedAt", "desc")
+);
+
+     
 
       const noteEls = new Map(); // id -> element
 
-      onSnapshot(q, (snap) => {
+      onSnapshot(wallQ, (snap) => {
         const seen = new Set();
         snap.forEach(docSnap => {
           seen.add(docSnap.id);
@@ -915,6 +1145,7 @@ if (localStorage.getItem("ambience_on") === "1") {
                 <small class="whoTitle"></small>
               </div>
               <div class="tools">
+              <div class="iconbtn archiveBtn" title="Archive">📦</div>
                 <div class="iconbtn editBtn" title="Edit">✎</div>
                 <div class="iconbtn delBtn" title="Delete">🗑</div>
               </div>
@@ -937,6 +1168,8 @@ if (localStorage.getItem("ambience_on") === "1") {
 
           el.querySelector(".editBtn").onclick = () => openModal({ mode:"edit", id, data: latestDataFor(id) });
           el.querySelector(".delBtn").onclick = () => tryDelete(id);
+          el.querySelector(".archiveBtn").onclick = () =>  toggleArchive(id, true);
+
 
           board.appendChild(el);
           noteEls.set(id, el);
@@ -981,6 +1214,7 @@ if (localStorage.getItem("ambience_on") === "1") {
         const canEdit = (myUid && data?.uid === myUid);
         el.querySelector(".editBtn").style.display = canEdit ? "grid" : "none";
         el.querySelector(".delBtn").style.display = canEdit ? "grid" : "none";
+        el.querySelector(".archiveBtn").style.display = canEdit ? "grid" : "none";
       }
 
       function latestDataFor(id){
@@ -1096,6 +1330,7 @@ if (localStorage.getItem("ambience_on") === "1") {
           payload.y = rand(90, window.innerHeight - 280);
           payload.rot = (Math.random() * 8 - 4).toFixed(2);     // -4..+4
           payload.polRot = (Math.random() * 10 - 5).toFixed(2); // -5..+5
+          payload.archived = false;
         }
 
         try {

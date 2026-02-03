@@ -449,7 +449,10 @@
   align-items:flex-end;
   justify-content:center;
 }
-.chestPanel{
+   .chestOverlay.open{
+  display:flex;
+}
+  
   width:min(820px, 100%);
   max-height: 80vh;
   overflow:hidden;
@@ -690,7 +693,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
     import {
       getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
-      onSnapshot, query, orderBy, serverTimestamp
+      onSnapshot, query, orderBy, serverTimestamp, where
     } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
     import { getAuth, signInAnonymously, onAuthStateChanged }
       from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
@@ -918,10 +921,26 @@ if (localStorage.getItem("ambience_on") === "1") {
       const auth = getAuth(app);
       const storage = getStorage(app);
 
-      const chest = document.getElementById("chest");
+      // ===== Chest UI wiring =====
+const chest = document.getElementById("chestOverlay");
 const chestBtn = document.getElementById("chestBtn");
-const closeChestBtn = document.getElementById("closeChestBtn");
+const closeChestBtn = document.getElementById("chestCloseBtn");
 const chestList = document.getElementById("chestList");
+
+function setChestOpen(isOpen){
+  chest.classList.toggle("open", isOpen);
+  chest.setAttribute("aria-hidden", String(!isOpen));
+  chestBtn.classList.toggle("on", isOpen);
+  chestBtn.setAttribute("aria-pressed", String(isOpen));
+}
+
+chestBtn.onclick = () => setChestOpen(!chest.classList.contains("open"));
+closeChestBtn.onclick = () => setChestOpen(false);
+
+// click outside panel to close
+chest.addEventListener("click", (e) => {
+  if (e.target === chest) setChestOpen(false);
+});
 
       function setChestOpen(isOpen){
   chest.classList.toggle("open", isOpen);
@@ -933,56 +952,7 @@ const chestList = document.getElementById("chestList");
 chestBtn.onclick = () => setChestOpen(!chest.classList.contains("open"));
 closeChestBtn.onclick = () => setChestOpen(false);
 
-      onSnapshot(chestQ, (snap) => {
-  chestList.innerHTML = "";
-
-  snap.forEach((docSnap) => {
-    const data = docSnap.data();
-    const id = docSnap.id;
-
-    const card = document.createElement("div");
-    card.className = "note";            // reuse your sticky note styling
-    card.style.position = "relative";
-    card.style.left = "auto";
-    card.style.top = "auto";
-    card.style.transform = "rotate(0deg)";
-    card.style.width = "100%";
-
-    const bg = data?.colorBg || "#FFE8A3";
-    const ink = data?.colorInk || "#1A1A1A";
-    card.style.backgroundColor = bg;
-    card.style.color = ink;
-
-    card.innerHTML = `
-      <div class="hdr" style="margin-top:0">
-        <div class="who">
-          <span>${escapeHtml(data?.author || "someone")}</span>
-          <small>${escapeHtml(data?.title || "")}</small>
-        </div>
-        <div class="tools">
-          <div class="iconbtn unarchiveBtn" title="Unarchive">↩</div>
-        </div>
-      </div>
-      <div class="text">${escapeHtml(data?.text || "")}</div>
-      ${
-        data?.imageUrl
-          ? `<div class="polaroid" style="display:block; transform:rotate(0deg)">
-               <img src="${data.imageUrl}" alt="Archived photo" />
-               <div class="caption">${escapeHtml(data?.caption || "")}</div>
-             </div>`
-          : ``
-      }
-      <div class="meta">
-        <div class="time">${formatTime(data?.createdAt)}</div>
-        <div class="hint">stored</div>
-      </div>
-    `;
-
-    card.querySelector(".unarchiveBtn").onclick = () => toggleArchive(id, false);
-
-    chestList.appendChild(card);
-  });
-});
+     
 
 // tiny helper so notes can’t break your HTML
 function escapeHtml(str){
@@ -1074,9 +1044,53 @@ const chestQ = query(
   where("archived", "==", true),
   orderBy("archivedAt", "desc")
 );
+onSnapshot(chestQ, (snap) => {
+  chestList.innerHTML = "";
 
-     
+  snap.forEach((docSnap) => {
+    const data = docSnap.data();
+    const id = docSnap.id;
 
+    const card = document.createElement("div");
+    card.className = "note inChest";
+
+    const bg = data?.colorBg || "#FFE8A3";
+    const ink = data?.colorInk || "#1A1A1A";
+    card.style.backgroundColor = bg;
+    card.style.color = ink;
+
+    card.innerHTML = `
+      <div class="hdr" style="margin-top:0">
+        <div class="who">
+          <span>${escapeHtml(data?.author || "someone")}</span>
+          <small>${escapeHtml(data?.title || "")}</small>
+        </div>
+        <div class="tools">
+          <div class="iconbtn unarchiveBtn" title="Unarchive">↩</div>
+        </div>
+      </div>
+
+      <div class="text">${escapeHtml(data?.text || "")}</div>
+
+      ${
+        data?.imageUrl
+          ? `<div class="polaroid" style="display:block; transform:rotate(0deg)">
+               <img src="${data.imageUrl}" alt="Archived photo" />
+               <div class="caption">${escapeHtml(data?.caption || "")}</div>
+             </div>`
+          : ``
+      }
+
+      <div class="meta">
+        <div class="time">${formatTime(data?.createdAt)}</div>
+        <div class="hint">stored</div>
+      </div>
+    `;
+
+    card.querySelector(".unarchiveBtn").onclick = () => toggleArchive(id, false);
+    chestList.appendChild(card);
+  });
+});
       const noteEls = new Map(); // id -> element
 
       onSnapshot(wallQ, (snap) => {

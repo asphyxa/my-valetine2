@@ -957,6 +957,7 @@ function escapeHtml(str){
 // Archive / Unarchive (Chest)
 // ==============================
 async function toggleArchive(noteId, shouldArchive){
+   try {
   await updateDoc(
     doc(db, "rooms", ROOM_ID, "notes", noteId),
     shouldArchive

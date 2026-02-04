@@ -922,37 +922,25 @@ if (localStorage.getItem("ambience_on") === "1") {
       const storage = getStorage(app);
 
       // ===== Chest UI wiring =====
-const chest = document.getElementById("chestOverlay");
+const chestOverlay = document.getElementById("chestOverlay");
 const chestBtn = document.getElementById("chestBtn");
-const closeChestBtn = document.getElementById("chestCloseBtn");
+const chestCloseBtn = document.getElementById("chestCloseBtn");
 const chestList = document.getElementById("chestList");
 
 function setChestOpen(isOpen){
-  chest.classList.toggle("open", isOpen);
-  chest.setAttribute("aria-hidden", String(!isOpen));
+  chestOverlay.style.display = isOpen ? "flex" : "none";
+  chestOverlay.setAttribute("aria-hidden", String(!isOpen));
   chestBtn.classList.toggle("on", isOpen);
   chestBtn.setAttribute("aria-pressed", String(isOpen));
 }
 
-chestBtn.onclick = () => setChestOpen(!chest.classList.contains("open"));
-closeChestBtn.onclick = () => setChestOpen(false);
+chestBtn.addEventListener("click", () => setChestOpen(true));
+chestCloseBtn.addEventListener("click", () => setChestOpen(false));
 
-// click outside panel to close
-chest.addEventListener("click", (e) => {
-  if (e.target === chest) setChestOpen(false);
+// click outside panel closes
+chestOverlay.addEventListener("click", (e) => {
+  if (e.target === chestOverlay) setChestOpen(false);
 });
-
-      function setChestOpen(isOpen){
-  chest.classList.toggle("open", isOpen);
-  chest.setAttribute("aria-hidden", String(!isOpen));
-  chestBtn.classList.toggle("on", isOpen);
-  chestBtn.setAttribute("aria-pressed", String(isOpen));
-}
-
-chestBtn.onclick = () => setChestOpen(!chest.classList.contains("open"));
-closeChestBtn.onclick = () => setChestOpen(false);
-
-     
 
 // tiny helper so notes can’t break your HTML
 function escapeHtml(str){
@@ -1034,13 +1022,8 @@ async function toggleArchive(noteId, shouldArchive){
       // Notes collection
       const notesCol = collection(db, "rooms", ROOM_ID, "notes");
       const wallQ = query(notesCol, orderBy("createdAt", "asc"));
-
-
-const chestQ = query(
-  notesCol,
-  where("archived", "==", true),
-  orderBy("archivedAt", "desc")
-);
+      const chestQ = query(notesCol, where("archived", "==", true), orderBy("archivedAt", "desc"));
+      
 onSnapshot(chestQ, (snap) => {
   chestList.innerHTML = "";
 

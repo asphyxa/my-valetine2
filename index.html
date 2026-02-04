@@ -1022,7 +1022,7 @@ async function toggleArchive(noteId, shouldArchive){
       // Notes collection
       const notesCol = collection(db, "rooms", ROOM_ID, "notes");
       const wallQ = query(notesCol, orderBy("createdAt", "asc"));
-      const chestQ = query(notesCol, where("archived", "==", true), orderBy("archivedAt", "desc"));
+      const chestQ = query(notesCol, where("archived", "==", true));
       
 onSnapshot(chestQ, (snap) => {
   chestList.innerHTML = "";
